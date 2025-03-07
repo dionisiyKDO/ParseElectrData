@@ -290,40 +290,72 @@ class Plotter:
 
 class DescriptiveStats:
     @staticmethod
-    def describe(df: pd.DataFrame) -> Tuple[dict, dict, float]:
+    def describe(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         if df.empty:
             logger.error("Empty DataFrame provided for descriptive statistics.")
-            return {}, {}, 0.0
+            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-        # Create dictionaries for max and min values
-        max_vals = {}
-        min_vals = {}
-
-        # List of columns to evaluate
-        columns_to_evaluate = [
-            
-            'IA', 'IB', 'IC', 
-            'UA', 'UB', 'UC', 
-            'PA', 'PB', 'PC', 
-            'ITHA', 'ITHB', 'ITHC', 'ITHAvg']
+        max_dfs = []
+        min_dfs = []
         
-        # Calculate descriptive statistics
-        for key in columns_to_evaluate:
-            if key in df.columns:
-                # Check if the column has non-zero values
-                if (df[key] != 0).any():
-                    # Calculate max and min excluding zeroes
-                    max_vals[key] = float(df[key].max())
-                    min_vals[key] = float(df[key][df[key] > 0].min())  # Min excluding zero
-                else:
-                    # If all values are zero
-                    max_vals[key] = 0.0
-                    min_vals[key] = 0.0  # Min is zero since all values are zero
+        # region Basic Metrics
+        sections = {
+            "Current": ["IA", "IB", "IC"],
+            "Voltage": ["UA", "UB", "UC"],
+            "Power": ["PA", "PB", "PC"],
+            "Active Energy": ["EPA", "EPB", "EPC", "EPSum"],
+            "Reactive Energy": ["EQA", "EQB", "EQC", "EQSum"],
+            "Apparent Energy": ["ESA", "ESB", "ESC", "ESSum"],
+        }
 
-        p_max_sum = sum(max_vals.get(f'P{phase}', 0) for phase in 'ABC')
+        for section, columns in sections.items():
+            if all(col in df.columns for col in columns):
+                section_df = df[columns]
+                max_dfs.append(section_df.max(axis=0).rename(section))
+                min_dfs.append(section_df.min(axis=0).rename(section))
+        # endregion
+
+        # region Harmonic Distortion (THD)
+        thd_sections = {
+            "UTHD": ["UTHA", "UTHB", "UTHC", "UTHAvg"],
+            "ITHD": ["ITHA", "ITHB", "ITHC", "ITHAvg"],
+            "ITHD3": ["ITHXA", "ITHXB", "ITHXC"],
+            "ITHD5": ["ITHYA", "ITHYB", "ITHYC"],
+            "ITHD7": ["ITHZA", "ITHZB", "ITHZC"],
+        }
+
+        for section, columns in thd_sections.items():
+            if all(col in df.columns for col in columns):
+                section_df = df[columns]
+                max_dfs.append(section_df.max(axis=0).rename(section))
+                min_dfs.append(section_df.min(axis=0).rename(section))
+        # endregion
+
+        # Combine min/max values
+        max_vals = pd.concat(max_dfs, axis=0)
+        min_vals = pd.concat(min_dfs, axis=0)
+
+        # region Energy Changes (Start-End)
+        energy_sections = {
+            "Active Energy": ["EPA", "EPB", "EPC", "EPSum"],
+            "Reactive Energy": ["EQA", "EQB", "EQC", "EQSum"],
+            "Apparent Energy": ["ESA", "ESB", "ESC", "ESSum"],
+        }
+        
+        energy_changes = []
+        for section, columns in energy_sections.items():
+            if all(col in df.columns for col in columns):
+                start, end = df[columns].head(1), df[columns].tail(1).reset_index(drop=True)
+                section_change = pd.concat([start, end, end - start], axis=0).T
+                section_change.columns = ["First", "Last", "Change"]
+                section_change["Category"] = section
+                energy_changes.append(section_change)
+
+        energy_summary = pd.concat(energy_changes, axis=0) if energy_changes else pd.DataFrame()
+        # endregion
 
         logger.info("Descriptive statistics calculated.")
-        return max_vals, min_vals, p_max_sum
+        return max_vals, min_vals, energy_summary
 
     def __min_max(self, df: pd.DataFrame, columns: list[str]) -> Tuple[dict, dict]:
         if df.empty:

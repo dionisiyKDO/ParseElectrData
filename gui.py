@@ -15,7 +15,7 @@ from utils import *
 class FileSelectorGUI:
     def __init__(self, master):
         self.master = master
-        self.master.geometry("400x150")
+        self.master.geometry("450x150")
         self.master.title("File Selector")
 
         self.file_path_label = ttk.Label(self.master, text="Please, select the file...")
@@ -55,7 +55,7 @@ class FileSelectorGUI:
 class ChildWindow:
     def __init__(self, master, path):
         self.master = master
-        self.master.geometry("620x350")
+        self.master.geometry("1040x350")  # Increased width to accommodate two Text widgets
         self.master.title("Make plots")
 
         self.data_loader = DataLoader()
@@ -127,34 +127,53 @@ class ChildWindow:
                                                                                                  title='Voltage Gaussian Distribution'))
         voltage_plot_button.pack(fill='x', padx=button_x_padding, pady=button_y_padding)
 
-        # Right Frame for text box
+        # Right Frame for Statistics Display
         right_frame = ttk.Frame(paned_window)
         paned_window.add(right_frame)
 
-        # Create a Text widget on the right frame
-        text_box = tk.Text(right_frame, wrap=tk.WORD, height=20, width=40)
-        text_box.pack(pady=10)
+        # Create Two Text Widgets
+        text_box_min_max = tk.Text(right_frame, wrap=tk.WORD, height=20, width=40)
+        text_box_min_max.grid(row=0, column=0, padx=5, pady=5)
 
-        # Populate the text box with initial text from DataFrame
-        max_vals, min_vals, p_max_sum = self.stats.describe(self.df)
-        df_descr = pd.DataFrame({'max_vals': max_vals, 'min_vals': min_vals})
-        text = ''
-        i = 0
-        for index, row in df_descr.iterrows():
-            i += 1
-            text += f'{index.rjust(7)}: Max = {str(round(row[0], 4)).ljust(10)}'
-            # if not np.isnan(row[1]):
-            text += f' Min = {str(round(row[1], 4)).ljust(10)}\n'
-            # else:
-            #     text += f'\n'
-            if i == 3:
-                text += '----------------------------------------\n'
-                i = 0
+        text_box_energy = tk.Text(right_frame, wrap=tk.WORD, height=20, width=55)
+        text_box_energy.grid(row=0, column=1, padx=5, pady=5)
 
-        text += '========================================\n'
-        text += f' MAX_PA + MAX_PB + MAX_PC = {p_max_sum}'
-        if self.df is not None:
-            text_box.insert(tk.END, text)
+        # Populate the Min/Max Text Box
+        max_vals, min_vals, energy_summary = self.stats.describe(self.df)
+
+        if not max_vals.empty and not min_vals.empty:
+            min_max_text = "Stats (Min/Max):\n"
+            min_max_text += "-" * 31 + "\n"
+
+            stats_df = pd.concat([max_vals, min_vals], axis=1)
+            stats_df.columns = ["Max", "Min"]
+
+            column_width = 15
+            min_max_text += f"{'Parameter'.ljust(column_width)}{'Max'.rjust(column_width)}{'Min'.rjust(column_width)}\n"
+            min_max_text += "-" * (column_width * 3) + "\n"
+
+            for index, row in stats_df.iterrows():
+                min_max_text += f"{index.ljust(column_width)}{row['Max']:>10.2f}{row['Min']:>10.2f}\n"
+
+            text_box_min_max.insert(tk.END, min_max_text)
+
+        # Populate the Energy Text Box
+        if not energy_summary.empty:
+            energy_text = "Energy Changes:\n"
+            energy_text += "-" * 50 + "\n"
+
+            column_width = 15
+            energy_text += f"{'Category'.ljust(20)}{'First'.rjust(column_width)}{'Last'.rjust(column_width)}{'Change'.rjust(column_width)}\n"
+            energy_text += "-" * 50 + "\n"
+
+            for _, row in energy_summary.iterrows():
+                energy_text += (f"{row['Category'].ljust(20)}"
+                                f"{row['First']:>10.0f}"
+                                f"{row['Last']:>10.0f}"
+                                f"{row['Change']:>10.0f}\n")
+
+            text_box_energy.insert(tk.END, energy_text)
+
 
 
 if __name__ == "__main__":
