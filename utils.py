@@ -16,6 +16,11 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+import time
+import tracemalloc
+import psutil
+from functools import wraps
+
 # Constants for colors
 LINE_COLORS = ['yellow', 'green', 'red', 'blue']
 ARROW_COLORS = ['black', 'black', 'black', 'black']
@@ -453,10 +458,7 @@ class DescriptiveStats:
         print(f'{result}')
 
 
-import time
-import tracemalloc
-import psutil
-from functools import wraps
+
 
 def performance_monitor(func):
     """
@@ -487,27 +489,59 @@ def performance_monitor(func):
     return wrapper
 
 @performance_monitor
-def demo():
+def main(path: str):
     # Load data
-    data_loader = DataLoader()
-    df = data_loader.load_data('data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv', rows=0)
+    df = load_data(path)
 
     # Preprocess data
-    # processor = DataProcessor()
-    # df = processor.preprocess(df)
+    df = preprocess_data(df)
 
-    # # Plot data
-    # plotter = Plotter()
-    # # plotter.plot_time_series(df, columns=['IA', 'IB', 'IC'], title="Current Timeline", min_max_arrows=True, start_date='2024-10-20')
-    # # plotter.plot_time_series(df, columns=['PA', 'PB', 'PC'], title="Power Timeline", min_max_arrows=True, start_date='2024-10-20')
-    # plotter.plot_gaussian_distribution(df, columns=['IA', 'IB', 'IC'], title='Gaussian Distribution', start_date='2024-10-20, 14:00', end_date='2024-10-23, 14:00')
+    # Plot time series
+    plot_time_series(df, ['IA', 'IB', 'IC'], 'Current', min_max_arrows=True)
+    # plot_time_series(df, ['VA', 'VB', 'VC'], 'Voltage', min_max_arrows=True)
+    # plot_time_series(df, ['PA', 'PB', 'PC'], 'Power', min_max_arrows=True)
+    
+    # Plot gaussian distribution
+    plot_gaussian_distribution(df, ['IA', 'IB', 'IC'], 'Current')
+    
+    # Descriptive statistics
+    describe_data(df)
 
-    # # Descriptive statistics
-    # stats = DescriptiveStats()
-    # max_vals, min_vals, p_max_sum = stats.describe(df)
+@performance_monitor
+def load_data(path: str, rows: int = 0) -> pd.DataFrame | None:
+    data_loader = DataLoader()
+    return data_loader.load_data(path, rows)
+
+@performance_monitor
+def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+    processor = DataProcessor()
+    return processor.preprocess(df)
+
+@performance_monitor
+def describe_data(df: pd.DataFrame) -> None:
+    stats = DescriptiveStats()
+    max_vals, min_vals, p_max_sum = stats.describe(df)
     # print(pd.DataFrame({'max': max_vals, 'min': min_vals}))
     # print(f'Power max sum: {p_max_sum}')
 
+@performance_monitor
+def plot_time_series(df: pd.DataFrame, columns: list[str], title: str, min_max_arrows: bool = False, start_date: str = None, end_date: str = None) -> None:
+    plotter = Plotter()
+    plotter.plot_time_series(df, columns, title, min_max_arrows, start_date, end_date)
+
+    # plotter.plot_time_series(df, columns=['IA', 'IB', 'IC'], title="Current Timeline", min_max_arrows=True, start_date='2024-10-20')
+    # plotter.plot_time_series(df, columns=['PA', 'PB', 'PC'], title="Power Timeline", min_max_arrows=True, start_date='2024-10-20')
+    plotter.plot_gaussian_distribution(df, columns=['IA', 'IB', 'IC'], title='Gaussian Distribution', start_date='2024-10-20, 14:00', end_date='2024-10-23, 14:00')
+
+@performance_monitor
+def plot_gaussian_distribution(df: pd.DataFrame, columns: list[str], title: str, start_date: str = None, end_date: str = None) -> None:
+    plotter = Plotter()
+    plotter.plot_gaussian_distribution(df, columns, title, start_date, end_date)
+
+
+
 
 if __name__ == "__main__":
-    demo()
+    # PATH = 'data\DataSheet_1819011001_3P4W_3-1.csv'
+    PATH = 'data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv'
+    main(path=PATH)
