@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import scipy
 
 import tkinter as tk
 from tkinter import ttk
@@ -55,7 +56,7 @@ class FileSelectorGUI:
 class ChildWindow:
     def __init__(self, master, path):
         self.master = master
-        self.master.geometry("1040x350")  # Increased width to accommodate two Text widgets
+        self.master.geometry("1055x350")  # Increased width to accommodate two Text widgets
         self.master.title("Make plots")
 
         self.data_loader = DataLoader()
@@ -132,10 +133,10 @@ class ChildWindow:
         paned_window.add(right_frame)
 
         # Create Two Text Widgets
-        text_box_min_max = tk.Text(right_frame, wrap=tk.WORD, height=20, width=40)
+        text_box_min_max = tk.Text(right_frame, wrap=tk.WORD, height=20, width=46)
         text_box_min_max.grid(row=0, column=0, padx=5, pady=5)
 
-        text_box_energy = tk.Text(right_frame, wrap=tk.WORD, height=20, width=55)
+        text_box_energy = tk.Text(right_frame, wrap=tk.WORD, height=20, width=51)
         text_box_energy.grid(row=0, column=1, padx=5, pady=5)
 
         # Populate the Min/Max Text Box
@@ -143,17 +144,28 @@ class ChildWindow:
 
         if not max_vals.empty and not min_vals.empty:
             min_max_text = "Stats (Min/Max):\n"
-            min_max_text += "-" * 31 + "\n"
+            min_max_text += "-" * 45 + "\n"  # Increased separator width
 
             stats_df = pd.concat([max_vals, min_vals], axis=1)
             stats_df.columns = ["Max", "Min"]
 
-            column_width = 15
-            min_max_text += f"{'Parameter'.ljust(column_width)}{'Max'.rjust(column_width)}{'Min'.rjust(column_width)}\n"
-            min_max_text += "-" * (column_width * 3) + "\n"
+            # Adjusted column widths for better alignment
+            param_width = 15   # Parameter column
+            max_width = 15     # Max values column
+            min_width = 15     # Min values column
+            
+            # Header row with better alignment
+            min_max_text += f"{'Parameter'.ljust(param_width)}{'Max'.rjust(max_width)}{'Min'.rjust(min_width)}\n"
+            min_max_text += "-" * 45 + "\n"  # Increased separator width again
 
+            # Format each row with consistent spacing
             for index, row in stats_df.iterrows():
-                min_max_text += f"{index.ljust(column_width)}{row['Max']:>10.2f}{row['Min']:>10.2f}\n"
+                # Using better number formatting with fewer decimals for large numbers
+                max_val = f"{row['Max']:.2f}" if row['Max'] < 1000 else f"{row['Max']:.0f}"
+                min_val = f"{row['Min']:.2f}" if row['Min'] < 1000 else f"{row['Min']:.0f}"
+                
+                # Ensure consistent column widths with proper padding
+                min_max_text += f"{index.ljust(param_width)}{max_val.rjust(max_width)}{min_val.rjust(min_width)}\n"
 
             text_box_min_max.insert(tk.END, min_max_text)
 
@@ -162,7 +174,7 @@ class ChildWindow:
             energy_text = "Energy Changes:\n"
             energy_text += "-" * 50 + "\n"
 
-            column_width = 15
+            column_width = 10
             energy_text += f"{'Category'.ljust(20)}{'First'.rjust(column_width)}{'Last'.rjust(column_width)}{'Change'.rjust(column_width)}\n"
             energy_text += "-" * 50 + "\n"
 
@@ -179,7 +191,7 @@ class ChildWindow:
 if __name__ == "__main__":
     # root = ThemedTk(theme="arc")
     root = tk.Tk()
-    root.iconbitmap('folder_icon.ico')
+    # root.iconbitmap('folder_icon.ico')
     sv_ttk.set_theme("dark")  # Set theme for sv_ttk
     app = FileSelectorGUI(root)
     
