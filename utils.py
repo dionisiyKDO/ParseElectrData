@@ -105,68 +105,70 @@ class Plotter:
         if min_max_arrows:
             self._add_min_max_arrows(df, columns)
 
+        self.fig.show()
         return self.fig  # Return figure instead of showing it
 
-    def plot_gaussian_distribution(self, df: pd.DataFrame, columns: list[str], title: str, start_date: str = None, end_date: str = None):
-        '''Plots a Gaussian distribution chart for the given columns using matplotlib, excluding zero values.'''
-        if df is None or df.empty:
-            logger.error("Empty DataFrame provided for Gaussian distribution plot.")
-            return None
-
-        # Filter DataFrame based on date range if specified
-        df = self._filter_date_range(df, start_date, end_date)
-
-        # Set up the matplotlib figure
-        plt.figure(figsize=(10, 6))
-        
-        for col in columns:
-            # Exclude zero values from the data
-            non_zero_data = df[col][df[col] != 0]
-            
-            if non_zero_data.empty:
-                logger.warning(f"All values are zero in column {col}, skipping plot.")
-                continue
-
-            sns.histplot(non_zero_data, kde=True, bins=30, label=col, stat="density", alpha=0.6)
-
-        # Configure the plot title and labels
-        plt.title(title, fontsize=16, color='black')
-        plt.xlabel("Value", fontsize=14)
-        plt.ylabel("Density", fontsize=14)
-        plt.xticks(fontsize=12)
-        plt.yticks(fontsize=12)
-        plt.legend(title="Columns", fontsize=12, title_fontsize=12)
-        plt.grid(True, linestyle="--", alpha=0.7)
-
-        # Show the plot
-        plt.tight_layout()
-        plt.show()
-
     # def plot_gaussian_distribution(self, df: pd.DataFrame, columns: list[str], title: str, start_date: str = None, end_date: str = None):
-    #     '''Plots a Gaussian distribution chart for the given columns and returns the figure.'''
+    #     '''Plots a Gaussian distribution chart for the given columns using matplotlib, excluding zero values.'''
     #     if df is None or df.empty:
     #         logger.error("Empty DataFrame provided for Gaussian distribution plot.")
     #         return None
 
-    #     # hist_data = [df[col] for col in columns]
-    #     hist_data = [df[col][df[col] != 0] for col in columns]
-    #     group_labels = columns
-
+    #     # Filter DataFrame based on date range if specified
     #     df = self._filter_date_range(df, start_date, end_date)
 
-    #     self.fig = ff.create_distplot(hist_data, group_labels, bin_size=0.2)
+    #     # Set up the matplotlib figure
+    #     plt.figure(figsize=(10, 6))
+        
+    #     for col in columns:
+    #         # Exclude zero values from the data
+    #         non_zero_data = df[col][df[col] != 0]
+            
+    #         if non_zero_data.empty:
+    #             logger.warning(f"All values are zero in column {col}, skipping plot.")
+    #             continue
 
-    #     self.fig.update_layout(
-    #         title=title,
-    #         xaxis_title='Value',
-    #         yaxis_title='Density',
-    #         title_font=dict(size=16, color='black'),
-    #         xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-    #         yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-    #         legend=dict(title_text='Columns', font=dict(size=12))
-    #     )
+    #         sns.histplot(non_zero_data, kde=True, bins=30, label=col, stat="density", alpha=0.6)
 
-    #     return self.fig  # Return figure instead of showing it
+    #     # Configure the plot title and labels
+    #     plt.title(title, fontsize=16, color='black')
+    #     plt.xlabel("Value", fontsize=14)
+    #     plt.ylabel("Density", fontsize=14)
+    #     plt.xticks(fontsize=12)
+    #     plt.yticks(fontsize=12)
+    #     plt.legend(title="Columns", fontsize=12, title_fontsize=12)
+    #     plt.grid(True, linestyle="--", alpha=0.7)
+
+    #     # Show the plot
+    #     plt.tight_layout()
+    #     plt.show()
+
+    def plot_gaussian_distribution(self, df: pd.DataFrame, columns: list[str], title: str, start_date: str = None, end_date: str = None):
+        '''Plots a Gaussian distribution chart for the given columns and returns the figure.'''
+        if df is None or df.empty:
+            logger.error("Empty DataFrame provided for Gaussian distribution plot.")
+            return None
+
+        # hist_data = [df[col] for col in columns]
+        hist_data = [df[col][df[col] != 0] for col in columns]
+        group_labels = columns
+
+        df = self._filter_date_range(df, start_date, end_date)
+
+        self.fig = ff.create_distplot(hist_data, group_labels, bin_size=0.2)
+
+        self.fig.update_layout(
+            title=title,
+            xaxis_title='Value',
+            yaxis_title='Density',
+            title_font=dict(size=16, color='black'),
+            xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            legend=dict(title_text='Columns', font=dict(size=12))
+        )
+
+        self.fig.show()
+        return self.fig  # Return figure instead of showing it
     
     def _filter_date_range(self, df: pd.DataFrame, start_date: str = None, end_date: str = None) -> pd.DataFrame:
         if df is None or df.empty:
@@ -450,24 +452,62 @@ class DescriptiveStats:
 
         print(f'{result}')
 
-# Example usage
-if __name__ == "__main__":
+
+import time
+import tracemalloc
+import psutil
+from functools import wraps
+
+def performance_monitor(func):
+    """
+    Decorator to measure execution time, memory usage, and CPU load of a function.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        process = psutil.Process()
+        tracemalloc.start()
+        start_time = time.time()
+        start_memory = process.memory_info().rss / 1024 ** 2  # MB
+        
+        result = func(*args, **kwargs)
+        
+        end_time = time.time()
+        end_memory = process.memory_info().rss / 1024 ** 2  # MB
+        peak_memory = tracemalloc.get_traced_memory()[1] / 1024 ** 2  # MB
+        tracemalloc.stop()
+        
+        print(f"Function: {func.__name__}")
+        print(f"Execution Time: {end_time - start_time:.4f} sec")
+        print(f"Memory Usage: {end_memory - start_memory:.4f} MB")
+        print(f"Peak Memory Usage: {peak_memory:.4f} MB")
+        print(f"CPU Usage: {process.cpu_percent(interval=0.1)}%\n")
+        
+        return result
+    
+    return wrapper
+
+@performance_monitor
+def demo():
     # Load data
     data_loader = DataLoader()
-    df = data_loader.load_data('./data/DataSheet_1819011001_3P4W_3.csv', rows=0)
+    df = data_loader.load_data('data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv', rows=0)
 
     # Preprocess data
-    processor = DataProcessor()
-    df = processor.preprocess(df)
+    # processor = DataProcessor()
+    # df = processor.preprocess(df)
 
-    # Plot data
-    plotter = Plotter()
-    # plotter.plot_time_series(df, columns=['IA', 'IB', 'IC'], title="Current Timeline", min_max_arrows=True, start_date='2024-10-20')
-    # plotter.plot_time_series(df, columns=['PA', 'PB', 'PC'], title="Power Timeline", min_max_arrows=True, start_date='2024-10-20')
-    plotter.plot_gaussian_distribution(df, columns=['IA', 'IB', 'IC'], title='Gaussian Distribution', start_date='2024-10-20, 14:00', end_date='2024-10-23, 14:00')
+    # # Plot data
+    # plotter = Plotter()
+    # # plotter.plot_time_series(df, columns=['IA', 'IB', 'IC'], title="Current Timeline", min_max_arrows=True, start_date='2024-10-20')
+    # # plotter.plot_time_series(df, columns=['PA', 'PB', 'PC'], title="Power Timeline", min_max_arrows=True, start_date='2024-10-20')
+    # plotter.plot_gaussian_distribution(df, columns=['IA', 'IB', 'IC'], title='Gaussian Distribution', start_date='2024-10-20, 14:00', end_date='2024-10-23, 14:00')
 
-    # Descriptive statistics
-    stats = DescriptiveStats()
-    max_vals, min_vals, p_max_sum = stats.describe(df)
-    print(pd.DataFrame({'max': max_vals, 'min': min_vals}))
-    print(f'Power max sum: {p_max_sum}')
+    # # Descriptive statistics
+    # stats = DescriptiveStats()
+    # max_vals, min_vals, p_max_sum = stats.describe(df)
+    # print(pd.DataFrame({'max': max_vals, 'min': min_vals}))
+    # print(f'Power max sum: {p_max_sum}')
+
+
+if __name__ == "__main__":
+    demo()
