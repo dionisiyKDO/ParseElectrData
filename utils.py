@@ -32,94 +32,9 @@ DEFAULT_CHUNK_SIZE = 100000  # Process 100k rows at a time
 
 
 class DataLoader:
-    def __init__(self):
-        # Define dtypes for each column based on your header row.
-        # Numeric columns are set to float32 to reduce memory usage.
-        self.dtype = {
-            "Date": "object",
-            "Time": "object",
-            "UA": "float32",
-            "UB": "float32",
-            "UC": "float32",
-            "UAvg": "float32",
-            "UTHA": "float32",
-            "UTHB": "float32",
-            "UTHC": "float32",
-            "UTHAvg": "float32",
-            "IA": "float32",
-            "IB": "float32",
-            "IC": "float32",
-            "IAvg": "float32",
-            "ITHA": "float32",
-            "ITHB": "float32",
-            "ITHC": "float32",
-            "ITHAvg": "float32",
-            "ITHXA": "float32",
-            "ITHXB": "float32",
-            "ITHXC": "float32",
-            "ITHYA": "float32",
-            "ITHYB": "float32",
-            "ITHYC": "float32",
-            "ITHZA": "float32",
-            "ITHZB": "float32",
-            "ITHZC": "float32",
-            "FA": "float32",
-            "FB": "float32",
-            "FC": "float32",
-            "FAvg": "float32",
-            "PFA": "float32",
-            "PFB": "float32",
-            "PFC": "float32",
-            "PFAvg": "float32",
-            "PA": "float32",
-            "PB": "float32",
-            "PC": "float32",
-            "PSum": "float32",
-            "QA": "float32",
-            "QB": "float32",
-            "QC": "float32",
-            "QSum": "float32",
-            "SA": "float32",
-            "SB": "float32",
-            "SC": "float32",
-            "SSum": "float32",
-            "EPA": "float32",
-            "EPB": "float32",
-            "EPC": "float32",
-            "EPSum": "float32",
-            "EQA": "float32",
-            "EQB": "float32",
-            "EQC": "float32",
-            "EQSum": "float32",
-            "ESA": "float32",
-            "ESB": "float32",
-            "ESC": "float32",
-            "ESSum": "float32",
-            "DmIA": "float32",
-            "DmIB": "float32",
-            "DmIC": "float32",
-            "DmIAVG": "float32",
-            "PDmIA": "float32",
-            "PDmIA_D/T": "object",
-            "PDmIB": "float32",
-            "PDmIB_D/T": "object",
-            "PDmIC": "float32",
-            "PDmIC_D/T": "object",
-            "PDmIAVG": "float32",
-            "PDmIAVG_D/T": "object",
-            "DmP": "float32",
-            "PDmP": "float32",
-            "PDmP_D/T": "object",
-            "DmQ": "float32",
-            "PDmQ": "float32",
-            "PDmQ_D/T": "object",
-            "DmS": "float32",
-            "PDmS": "float32",
-            "PDmS_D/T": "object",
-        }
-
+    @staticmethod
     def load_data(
-        self, file_path: str, rows: int = 0, usecols: list[str] = None
+        file_path: str, rows: int = 0, usecols: list[str] = None
     ) -> pd.DataFrame | None:
         """Loads data from a CSV file and returns a DataFrame.
 
@@ -147,7 +62,7 @@ class DataLoader:
                 nrows=rows if rows else None,
                 low_memory=True,
                 usecols=usecols,
-                # parse_dates=[[0, 1]], (time bottleneck, better not use)
+                parse_dates=[[0, 1]], # (time bottleneck, better not use)
             )
 
             if df is None or df.empty:
@@ -167,55 +82,31 @@ class DataLoader:
             logger.error(f"Failed to load data: {e}")
             return None
 
-    # (Time bottleneck, better not user)
-    def combine_date_time(
-        self,
-        df: pd.DataFrame,
-        date_col: str = "Date",
-        time_col: str = "Time",
-        new_col: str = "DateTime",
-    ) -> pd.DataFrame:
-        """Combines separate date and time columns into one datetime column.
-
-        Args:
-            df (pd.DataFrame): DataFrame containing separate date and time columns.
-            date_col (str): Name of the date column.
-            time_col (str): Name of the time column.
-            new_col (str): Name for the combined datetime column.
-
-        Returns:
-            pd.DataFrame: DataFrame with the new datetime column.
-        """
-        try:
-            df[new_col] = pd.to_datetime(
-                df[date_col] + " " + df[time_col], errors="coerce"
-            )
-            return df
-        except Exception as e:
-            logger.error(f"Failed to combine date and time columns: {e}")
-            return df
-
 
 class DataProcessor:
-    def preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Preprocesses the data by:
+    @staticmethod
+    def preprocess(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Preprocesses the data by:
         - taking the absolute values of the power columns.
 
         Args:
-            df (pd.DataFrame): The DataFrame containing the data.
+            df (pd.DataFrame): Input DataFrame
 
         Returns:
-            df (pd.DataFrame): The preprocessed DataFrame.
+            df (pd.DataFrame): Preprocessed DataFrame
         """
         if df is None or df.empty:
-            logger.error("No DataFrame provided to preprocess.")
+            logger.error("Empty DataFrame provided for preprocessing.")
             return pd.DataFrame()
+
         try:
-            df[["PA", "PB", "PC"]] = df[
-                ["PA", "PB", "PC"]
-            ].abs()  # taking aboslute values to remove negative values
+            power_cols = ["PA", "PB", "PC"]
+            df[power_cols] = df[power_cols].abs()
+
             logger.info("Data preprocessing completed.")
             return df
+
         except KeyError as e:
             logger.error(f"Preprocessing failed due to missing columns: {e}")
             return pd.DataFrame()
@@ -233,17 +124,37 @@ class Plotter:
         min_max_arrows: bool = False,
         start_date: str = None,
         end_date: str = None,
-    ):
-        """Plots a time series chart for the given columns and returns the figure."""
-        if df is None or df.empty:
-            logger.error("Empty DataFrame provided to plot on time series chart.")
+        downsample: int = 1,  # Optional downsampling factor (1 = no downsampling)
+    ) -> go.Figure:
+        """
+        Plots a time series chart for the given columns.
+
+        Args:
+            df (pd.DataFrame): DataFrame containing time series data
+            columns (list[str]): Column names to plot
+            title (str): Chart title
+            min_max_arrows (bool): Whether to add min/max annotations
+            start_date (str): Optional start date filter
+            end_date (str): Optional end date filter
+
+        Returns:
+            go.Figure: Plotly figure object
+        """
+        if df.empty:
+            logger.error("Empty DataFrame provided for time series plot.")
             return None
 
         if start_date or end_date:
             df = self._filter_date_range(df, start_date, end_date)
+
         df = self._fill_missing_time_with_zeros(df, columns)
 
+        # Optional downsampling to reduce rendering load if needed
+        if downsample > 1:
+            df = df.iloc[::downsample].copy()
+
         self.fig = go.Figure()
+
         for idx, col in enumerate(columns):
             self.fig.add_trace(
                 go.Scatter(
@@ -251,18 +162,26 @@ class Plotter:
                     y=df[col],
                     mode="lines",
                     name=col,
-                    line=dict(color=LINE_COLORS[idx]),
+                    line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)]),
                 )
             )
+
+            # self.fig.add_trace(
+            #     go.Scattergl(
+            #         x=df["Date_Time"],
+            #         y=df[col],
+            #         mode="lines",
+            #         name=col,
+            #         line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)]),
+            #     )
+            # )
 
         self.fig.update_layout(
             title=title,
             xaxis_title="Date and Time",
             yaxis_title="Values",
             hovermode="closest",
-            title_font=dict(
-                size=16, color="black"
-            ),  # Increased font size for readability
+            title_font=dict(size=16, color="black"),
             xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
             yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
             legend=dict(font=dict(size=12)),
@@ -272,43 +191,43 @@ class Plotter:
             self._add_min_max_arrows(df, columns)
 
         self.fig.show()
-        return self.fig  # Return figure instead of showing it
+        return self.fig
 
-    # def plot_gaussian_distribution(self, df: pd.DataFrame, columns: list[str], title: str, start_date: str = None, end_date: str = None):
-    #     '''Plots a Gaussian distribution chart for the given columns using matplotlib, excluding zero values.'''
+    # def plot_gaussian_distribution(
+    #     self,
+    #     df: pd.DataFrame,
+    #     columns: list[str],
+    #     title: str,
+    #     start_date: str = None,
+    #     end_date: str = None,
+    #     bins: int = 50,
+    # ):
+    #     """Plots a Gaussian distribution chart for the given columns and returns the figure."""
     #     if df is None or df.empty:
     #         logger.error("Empty DataFrame provided for Gaussian distribution plot.")
     #         return None
 
-    #     # Filter DataFrame based on date range if specified
+    #     # hist_data = [df[col] for col in columns]
+    #     hist_data = [df[col][df[col] != 0] for col in columns]
+    #     group_labels = columns
+
     #     df = self._filter_date_range(df, start_date, end_date)
 
-    #     # Set up the matplotlib figure
-    #     plt.figure(figsize=(10, 6))
+    #     self.fig = ff.create_distplot(hist_data, group_labels, bin_size=0.2)
 
-    #     for col in columns:
-    #         # Exclude zero values from the data
-    #         non_zero_data = df[col][df[col] != 0]
+    #     self.fig.update_layout(
+    #         title=title,
+    #         xaxis_title="Value",
+    #         yaxis_title="Density",
+    #         title_font=dict(size=16, color="black"),
+    #         xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+    #         yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+    #         legend=dict(title_text="Columns", font=dict(size=12)),
+    #     )
 
-    #         if non_zero_data.empty:
-    #             logger.warning(f"All values are zero in column {col}, skipping plot.")
-    #             continue
-
-    #         sns.histplot(non_zero_data, kde=True, bins=30, label=col, stat="density", alpha=0.6)
-
-    #     # Configure the plot title and labels
-    #     plt.title(title, fontsize=16, color='black')
-    #     plt.xlabel("Value", fontsize=14)
-    #     plt.ylabel("Density", fontsize=14)
-    #     plt.xticks(fontsize=12)
-    #     plt.yticks(fontsize=12)
-    #     plt.legend(title="Columns", fontsize=12, title_fontsize=12)
-    #     plt.grid(True, linestyle="--", alpha=0.7)
-
-    #     # Show the plot
-    #     plt.tight_layout()
-    #     plt.show()
-
+    #     self.fig.show()
+    #     return self.fig  # Return figure instead of showing it
+    
     def plot_gaussian_distribution(
         self,
         df: pd.DataFrame,
@@ -316,19 +235,40 @@ class Plotter:
         title: str,
         start_date: str = None,
         end_date: str = None,
+        bins: int = 50  # Number of bins for the histogram
     ):
-        """Plots a Gaussian distribution chart for the given columns and returns the figure."""
+        """Plots a Gaussian distribution chart using a pre-computed histogram.
+        
+        This avoids heavy kernel density estimation with large datasets.
+        """
         if df is None or df.empty:
             logger.error("Empty DataFrame provided for Gaussian distribution plot.")
             return None
 
-        # hist_data = [df[col] for col in columns]
-        hist_data = [df[col][df[col] != 0] for col in columns]
-        group_labels = columns
-
+        # Filter the DataFrame first
         df = self._filter_date_range(df, start_date, end_date)
+        self.fig = go.Figure()
+        
+        for idx, col in enumerate(columns):
+            # Exclude zeros for the distribution
+            data = df[col][df[col] != 0].dropna()
+            if data.empty:
+                logger.warning(f"No valid data found for column: {col}")
+                continue
 
-        self.fig = ff.create_distplot(hist_data, group_labels, bin_size=0.2)
+            # Compute a histogram with density normalization
+            hist, bin_edges = np.histogram(data, bins=bins, density=True)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+            self.fig.add_trace(
+                go.Scatter(
+                    x=bin_centers,
+                    y=hist,
+                    mode="lines",
+                    name=col,
+                    line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)]),
+                )
+            )
 
         self.fig.update_layout(
             title=title,
@@ -341,31 +281,28 @@ class Plotter:
         )
 
         self.fig.show()
-        return self.fig  # Return figure instead of showing it
+        return self.fig
 
     def _filter_date_range(
         self, df: pd.DataFrame, start_date: str = None, end_date: str = None
     ) -> pd.DataFrame:
+        """Filters the DataFrame between start_date and end_date based on Date_Time."""
         if df is None or df.empty:
             logger.error("Empty DataFrame provided to filter date range.")
             return pd.DataFrame()
 
-        if start_date or end_date:
-            try:
-                df_copy = df.copy()
-
-                if start_date:
-                    start_date = pd.to_datetime(start_date)
-                    df_copy = df_copy[(df["Date_Time"] >= start_date)]
-
-                if end_date:
-                    end_date = pd.to_datetime(end_date)
-                    df_copy = df_copy[(df["Date_Time"] <= end_date)]
-
-                return df_copy
-            except ValueError as e:
-                logger.error(f"Failed to filter date range: {e}")
-                return df
+        df_copy = df.copy()
+        try:
+            if start_date:
+                start_date = pd.to_datetime(start_date, errors="coerce")
+                df_copy = df_copy[df_copy["Date_Time"] >= start_date]
+            if end_date:
+                end_date = pd.to_datetime(end_date, errors="coerce")
+                df_copy = df_copy[df_copy["Date_Time"] <= end_date]
+        except Exception as e:
+            logger.error(f"Failed to filter date range: {e}")
+            return df
+        return df_copy
 
     def _fill_missing_time_with_zeros(
         self, df: pd.DataFrame, columns: list
@@ -689,41 +626,36 @@ def main(path: str):
     # Load data
     df = load_data(path)
 
-    # Convert to datetime
-    df = convert_to_datetime(df)
-
     # Preprocess data
     # df = preprocess_data(df)
 
     # Plot time series
-    # plot_time_series(df, ["IA", "IB", "IC"], "Current", min_max_arrows=True)
-    # plot_time_series(df, ['VA', 'VB', 'VC'], 'Voltage', min_max_arrows=True)
+    # plot_time_series(df, ["IA", "IB", "IC"], "Current", min_max_arrows=True, downsample=5)
     # plot_time_series(df, ['PA', 'PB', 'PC'], 'Power', min_max_arrows=True)
 
     # Plot gaussian distribution
-    # plot_gaussian_distribution(df, ["IA", "IB", "IC"], "Current")
+    # plot_gaussian_distribution(
+    #     df,
+    #     columns=["UA", "UB", "UC"],
+    #     title="Gaussian Distribution",
+    #     bins=250,
+    #     # start_date="2024-10-20, 14:00",
+    #     # end_date="2024-10-23, 14:00",
+    # )
 
     # Descriptive statistics
     # describe_data(df)
 
 
-@performance_monitor  # 7-9 sec
+@performance_monitor  # load: 7-9 sec; convert to datetime: 10 sec
 def load_data(path: str, rows: int = 0) -> pd.DataFrame | None:
     data_loader = DataLoader()
     return data_loader.load_data(path, rows)
 
-
-@performance_monitor  # 10 sec
-def convert_to_datetime(df: pd.DataFrame) -> pd.DataFrame:
-    data_loader = DataLoader()
-    return data_loader.combine_date_time(df)
-
-
-@performance_monitor
+# @performance_monitor
 def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     processor = DataProcessor()
     return processor.preprocess(df)
-
 
 @performance_monitor
 def describe_data(df: pd.DataFrame) -> None:
@@ -741,20 +673,10 @@ def plot_time_series(
     min_max_arrows: bool = False,
     start_date: str = None,
     end_date: str = None,
+    downsample: int = 1,
 ) -> None:
     plotter = Plotter()
-    plotter.plot_time_series(df, columns, title, min_max_arrows, start_date, end_date)
-
-    # plotter.plot_time_series(df, columns=['IA', 'IB', 'IC'], title="Current Timeline", min_max_arrows=True, start_date='2024-10-20')
-    # plotter.plot_time_series(df, columns=['PA', 'PB', 'PC'], title="Power Timeline", min_max_arrows=True, start_date='2024-10-20')
-    plotter.plot_gaussian_distribution(
-        df,
-        columns=["IA", "IB", "IC"],
-        title="Gaussian Distribution",
-        start_date="2024-10-20, 14:00",
-        end_date="2024-10-23, 14:00",
-    )
-
+    plotter.plot_time_series(df, columns, title, min_max_arrows, start_date, end_date, downsample)
 
 @performance_monitor
 def plot_gaussian_distribution(
@@ -763,9 +685,10 @@ def plot_gaussian_distribution(
     title: str,
     start_date: str = None,
     end_date: str = None,
+    bins: int = 50,
 ) -> None:
     plotter = Plotter()
-    plotter.plot_gaussian_distribution(df, columns, title, start_date, end_date)
+    plotter.plot_gaussian_distribution(df, columns, title, start_date, end_date, bins)
 
 
 # endregion
