@@ -10,6 +10,5 @@ dependencies = [
     "pandas>=2.2.3",
     "plotly>=6.0.0",
     "psutil>=7.0.0",
-    "scipy>=1.15.2",
     "sv-ttk>=2.6.0",
 ]

@@ -3,6 +3,7 @@ data/
 main.ipynb
 main.py
 utils-old.py
+gui_old.py
 
 
 # Byte-compiled / optimized / DLL files
