@@ -193,42 +193,41 @@ class Plotter:
         self.fig.show()
         return self.fig
 
-    # def plot_gaussian_distribution(
-    #     self,
-    #     df: pd.DataFrame,
-    #     columns: list[str],
-    #     title: str,
-    #     start_date: str = None,
-    #     end_date: str = None,
-    #     bins: int = 50,
-    # ):
-    #     """Plots a Gaussian distribution chart for the given columns and returns the figure."""
-    #     if df is None or df.empty:
-    #         logger.error("Empty DataFrame provided for Gaussian distribution plot.")
-    #         return None
+    def plot_gaussian_distribution_v1(
+        self,
+        df: pd.DataFrame,
+        columns: list[str],
+        title: str,
+        start_date: str = None,
+        end_date: str = None,
+    ):
+        """Plots a Gaussian distribution chart for the given columns and returns the figure."""
+        if df is None or df.empty:
+            logger.error("Empty DataFrame provided for Gaussian distribution plot.")
+            return None
 
-    #     # hist_data = [df[col] for col in columns]
-    #     hist_data = [df[col][df[col] != 0] for col in columns]
-    #     group_labels = columns
+        # hist_data = [df[col] for col in columns]
+        hist_data = [df[col][df[col] != 0] for col in columns]
+        group_labels = columns
 
-    #     df = self._filter_date_range(df, start_date, end_date)
+        df = self._filter_date_range(df, start_date, end_date)
 
-    #     self.fig = ff.create_distplot(hist_data, group_labels, bin_size=0.2)
+        self.fig = ff.create_distplot(hist_data, group_labels, bin_size=0.2)
 
-    #     self.fig.update_layout(
-    #         title=title,
-    #         xaxis_title="Value",
-    #         yaxis_title="Density",
-    #         title_font=dict(size=16, color="black"),
-    #         xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-    #         yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-    #         legend=dict(title_text="Columns", font=dict(size=12)),
-    #     )
+        self.fig.update_layout(
+            title=title,
+            xaxis_title="Value",
+            yaxis_title="Density",
+            title_font=dict(size=16, color="black"),
+            xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            legend=dict(title_text="Columns", font=dict(size=12)),
+        )
 
-    #     self.fig.show()
-    #     return self.fig  # Return figure instead of showing it
+        self.fig.show()
+        return self.fig  # Return figure instead of showing it
     
-    def plot_gaussian_distribution(
+    def plot_gaussian_distribution_v2(
         self,
         df: pd.DataFrame,
         columns: list[str],
@@ -307,68 +306,48 @@ class Plotter:
     def _fill_missing_time_with_zeros(
         self, df: pd.DataFrame, columns: list
     ) -> pd.DataFrame:
-        """Fills missing datetime values with zeros, especially for gaps greater than 2 hours."""
+        """
+        Vectorized approach: Detects gaps in the Date_Time series (greater than 2 hours)
+        and fills them by inserting rows (with zeros in specified columns).
+        """
         if "Date_Time" not in df.columns:
-            logger.error(
-                "DataFrame does not contain 'Date_Time' column for filling missing times."
+            logger.error("DataFrame does not contain 'Date_Time' column for filling missing times.")
+            return df
+
+        # Ensure Date_Time is datetime
+        if not pd.api.types.is_datetime64_any_dtype(df["Date_Time"]):
+            df["Date_Time"] = pd.to_datetime(df["Date_Time"], errors="coerce")
+            
+        df = df.sort_values("Date_Time").reset_index(drop=True)
+        df["Time_Diff"] = df["Date_Time"].diff()
+
+        # Identify indices where the gap exceeds 2 hours
+        gap_indices = df.index[df["Time_Diff"] > pd.Timedelta(hours=2)]
+        new_rows = []
+
+        for i in gap_indices:
+            start_time = df.loc[i - 1, "Date_Time"]
+            end_time = df.loc[i, "Date_Time"]
+            # Use pd.date_range to generate missing timestamps at 2-hour intervals (excluding endpoints)
+            missing_times = pd.date_range(
+                start=start_time + pd.Timedelta(hours=2),
+                end=end_time - pd.Timedelta(hours=2),
+                freq="2H"
             )
-            return df
+            if len(missing_times) > 0:
+                # Create a row for each missing timestamp, setting the specified columns to zero
+                for t in missing_times:
+                    row = {col: 0 for col in columns}
+                    row["Date_Time"] = t
+                    new_rows.append(row)
 
-        try:
-            df["Date_Time"] = pd.to_datetime(df["Date_Time"])
+        if new_rows:
+            zero_fill_df = pd.DataFrame(new_rows)
+            df = pd.concat([df, zero_fill_df], ignore_index=True)
 
-            # Sort by Date_Time to ensure proper gap calculation
-            df = df.sort_values(by="Date_Time").reset_index(drop=True)
-
-            # Identify gaps
-            df["Time_Diff"] = df["Date_Time"].diff()
-
-            # Create a DataFrame for the new zero-filled rows
-            zero_fill_rows = []
-
-            for i in range(1, len(df)):
-                if df["Time_Diff"].iloc[i] and df["Time_Diff"].iloc[i] > pd.Timedelta(
-                    hours=2
-                ):
-                    start_time = df["Date_Time"].iloc[i - 1]
-                    end_time = df["Date_Time"].iloc[i]
-
-                    # Create new timestamps for 2-hour intervals within the gap
-                    current_time = start_time + pd.Timedelta(hours=2)
-
-                    while current_time < end_time:
-                        zero_fill_row = {
-                            col: 0 for col in columns
-                        }  # Fill zeros for specified columns
-                        zero_fill_row["Date_Time"] = current_time
-                        zero_fill_rows.append(zero_fill_row)
-                        current_time += pd.Timedelta(
-                            hours=2
-                        )  # Move to the next 2-hour interval
-
-            # Convert zero_fill_rows to a DataFrame
-            if zero_fill_rows:
-                zero_fill_df = pd.DataFrame(zero_fill_rows)
-                df = pd.concat([df, zero_fill_df], ignore_index=True)
-
-            # Remove duplicates, fill missing columns with zeros, and sort again
-            df = df.drop_duplicates(subset="Date_Time")
-            df = df.sort_values(by="Date_Time").reset_index(drop=True)
-
-            # Ensure that missing columns are added with zeros
-            # for col in columns:
-            #     if col not in df.columns:
-            #         df[col] = 0
-            #     df[col].fillna(0, inplace=True)
-
-            # Drop the Time_Diff column as it's no longer needed
-            df.drop(columns=["Time_Diff"], inplace=True)
-
-            return df
-
-        except Exception as e:
-            logger.error(f"Failed to fill missing time with zeros: {e}")
-            return df
+        df.drop(columns=["Time_Diff"], inplace=True)
+        df = df.drop_duplicates(subset="Date_Time").sort_values("Date_Time").reset_index(drop=True)
+        return df
 
     def _add_min_max_arrows(self, df: pd.DataFrame, columns: list):
         for idx, col in enumerate(columns):
@@ -627,10 +606,10 @@ def main(path: str):
     df = load_data(path)
 
     # Preprocess data
-    # df = preprocess_data(df)
+    df = preprocess_data(df)
 
     # Plot time series
-    # plot_time_series(df, ["IA", "IB", "IC"], "Current", min_max_arrows=True, downsample=5)
+    plot_time_series(df, ["IA", "IB", "IC"], "Current", min_max_arrows=True, downsample=5)
     # plot_time_series(df, ['PA', 'PB', 'PC'], 'Power', min_max_arrows=True)
 
     # Plot gaussian distribution
@@ -693,6 +672,6 @@ def plot_gaussian_distribution(
 
 # endregion
 if __name__ == "__main__":
-    # PATH = 'data\DataSheet_1819011001_3P4W_3-1.csv'
-    PATH = "data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv"
+    PATH = 'data\DataSheet_1819011001_3P4W_3.csv'
+    # PATH = "data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv"
     main(path=PATH)
