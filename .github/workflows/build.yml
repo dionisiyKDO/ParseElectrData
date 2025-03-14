@@ -7,9 +7,8 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  build:
-    runs-on: windows-latest  # Use Windows to build the EXE
-
+  install-dependencies:
+    runs-on: windows-latest
     steps:
       # Checkout the repository
       - name: Checkout code
@@ -21,11 +20,66 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Cache pip dependencies
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      # Upload Python environment as an artifact
+      - name: Upload Python environment
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-env
+          path: |
+            ~\AppData\Local\Programs\Python\Python310\
+            ~\AppData\Local\pip\Cache\
+
+  build-and-release:
+    runs-on: windows-latest
+    needs: install-dependencies  # Depends on the install job
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # Restore cached pip dependencies
+      - name: Restore pip cache
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Download Python environment artifact
+      - name: Download Python environment
+        uses: actions/download-artifact@v4
+        with:
+          name: python-env
+          path: ~\AppData\Local\
+
+      # Ensure dependencies are available (reinstall if cache/artifact fails)
+      - name: Verify dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --no-cache-dir --force-reinstall
+        if: steps.cache-restore.outputs.cache-hit != 'true'
 
       # Run the build script
       - name: Build EXE with PyInstaller
@@ -43,7 +97,7 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GITHUB_TOKEN instead of GH_TOKEN
         with:
           tag_name: v${{ github.run_number }}
           release_name: Release v${{ github.run_number }}
@@ -54,7 +108,7 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/ParseData.exe
