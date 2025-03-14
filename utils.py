@@ -1,15 +1,15 @@
-from os.path import exists
 import pandas as pd
 import numpy as np
+import logging
 
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 
-from typing import Tuple, Optional, Dict, List, Union, Iterator, Callable
-from functools import lru_cache, wraps
-from datetime import datetime
-import gc
+from functools import wraps
+from os.path import exists
+from typing import Tuple
 
+# Monitoring
 import time
 import tracemalloc
 import psutil
@@ -17,7 +17,6 @@ import cProfile
 import pstats
 import io
 
-import logging
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -62,7 +61,7 @@ class DataLoader:
                 nrows=rows if rows else None,
                 low_memory=True,
                 usecols=usecols,
-                parse_dates=[[0, 1]], # (time bottleneck, better not use)
+                parse_dates=[[0, 1]],  # (time bottleneck, better not use)
             )
 
             if df is None or df.empty:
@@ -166,16 +165,6 @@ class Plotter:
                 )
             )
 
-            # self.fig.add_trace(
-            #     go.Scattergl(
-            #         x=df["Date_Time"],
-            #         y=df[col],
-            #         mode="lines",
-            #         name=col,
-            #         line=dict(color=LINE_COLORS[idx % len(LINE_COLORS)]),
-            #     )
-            # )
-
         self.fig.update_layout(
             title=title,
             xaxis_title="Date and Time",
@@ -226,7 +215,7 @@ class Plotter:
 
         self.fig.show()
         return self.fig  # Return figure instead of showing it
-    
+
     def plot_gaussian_distribution_v2(
         self,
         df: pd.DataFrame,
@@ -234,10 +223,10 @@ class Plotter:
         title: str,
         start_date: str = None,
         end_date: str = None,
-        bins: int = 50  # Number of bins for the histogram
+        bins: int = 50,  # Number of bins for the histogram
     ):
         """Plots a Gaussian distribution chart using a pre-computed histogram.
-        
+
         This avoids heavy kernel density estimation with large datasets.
         """
         if df is None or df.empty:
@@ -247,7 +236,7 @@ class Plotter:
         # Filter the DataFrame first
         df = self._filter_date_range(df, start_date, end_date)
         self.fig = go.Figure()
-        
+
         for idx, col in enumerate(columns):
             # Exclude zeros for the distribution
             data = df[col][df[col] != 0].dropna()
@@ -311,13 +300,15 @@ class Plotter:
         and fills them by inserting rows (with zeros in specified columns).
         """
         if "Date_Time" not in df.columns:
-            logger.error("DataFrame does not contain 'Date_Time' column for filling missing times.")
+            logger.error(
+                "DataFrame does not contain 'Date_Time' column for filling missing times."
+            )
             return df
 
         # Ensure Date_Time is datetime
         if not pd.api.types.is_datetime64_any_dtype(df["Date_Time"]):
             df["Date_Time"] = pd.to_datetime(df["Date_Time"], errors="coerce")
-            
+
         df = df.sort_values("Date_Time").reset_index(drop=True)
         df["Time_Diff"] = df["Date_Time"].diff()
 
@@ -332,7 +323,7 @@ class Plotter:
             missing_times = pd.date_range(
                 start=start_time + pd.Timedelta(hours=2),
                 end=end_time - pd.Timedelta(hours=2),
-                freq="2H"
+                freq="2H",
             )
             if len(missing_times) > 0:
                 # Create a row for each missing timestamp, setting the specified columns to zero
@@ -346,10 +337,15 @@ class Plotter:
             df = pd.concat([df, zero_fill_df], ignore_index=True)
 
         df.drop(columns=["Time_Diff"], inplace=True)
-        df = df.drop_duplicates(subset="Date_Time").sort_values("Date_Time").reset_index(drop=True)
+        df = (
+            df.drop_duplicates(subset="Date_Time")
+            .sort_values("Date_Time")
+            .reset_index(drop=True)
+        )
         return df
 
     def _add_min_max_arrows(self, df: pd.DataFrame, columns: list):
+        """Adds min and max annotations to the plot for each specified column."""
         for idx, col in enumerate(columns):
             try:
                 # Create a mask to filter out rows where the specified column value is less than or equal to 0
@@ -374,29 +370,36 @@ class Plotter:
     ):
         """Adds a formatted annotation to the plot."""
         self.fig.add_annotation(
-            text=f"<b>{label}:</b><br>{col} = {value:.2f}",  # Improved formatting for clarity
+            text=f"<b>{label}:</b><br>{col} = {value:.2f}",
             x=row["Date_Time"],
             y=row[col],
             showarrow=True,
             arrowhead=2,
             arrowsize=1.5,
             arrowwidth=2,
-            arrowcolor=ARROW_COLORS[idx],
-            ax=0,  # Center arrow horizontally
-            ay=-40,  # Maintain vertical offset
-            font=dict(
-                size=12, color="black"
-            ),  # Make font color more neutral for readability
-            bgcolor="rgba(255, 255, 255, 0.66)",  # Semi-transparent white background for better contrast
-            bordercolor="black",  # Border color for annotation box
-            borderwidth=1,  # Border width for annotation box
-            borderpad=3,  # Padding inside the annotation box
+            arrowcolor=ARROW_COLORS[idx % len(ARROW_COLORS)],
+            ax=0,
+            ay=-40,
+            font=dict(size=12, color="black"),
+            bgcolor="rgba(255, 255, 255, 0.66)",
+            bordercolor="black",
+            borderwidth=1,
+            borderpad=3,
         )
 
 
 class DescriptiveStats:
     @staticmethod
     def describe(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Calculates descriptive statistics for the data.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Max values, min values, energy summary
+        """
         if df.empty:
             logger.error("Empty DataFrame provided for descriptive statistics.")
             return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -404,7 +407,7 @@ class DescriptiveStats:
         max_dfs = []
         min_dfs = []
 
-        # region Basic Metrics
+        # Define sections for metrics grouping
         sections = {
             "Current": ["IA", "IB", "IC"],
             "Voltage": ["UA", "UB", "UC"],
@@ -414,14 +417,14 @@ class DescriptiveStats:
             "Apparent Energy": ["ESA", "ESB", "ESC", "ESSum"],
         }
 
+        # Process each section in a vectorized manner
         for section, columns in sections.items():
             if all(col in df.columns for col in columns):
                 section_df = df[columns]
                 max_dfs.append(section_df.max(axis=0).rename(section))
                 min_dfs.append(section_df.min(axis=0).rename(section))
-        # endregion
 
-        # region Harmonic Distortion (THD)
+        # Process Harmonic Distortion (THD)
         thd_sections = {
             "UTHD": ["UTHA", "UTHB", "UTHC", "UTHAvg"],
             "ITHD": ["ITHA", "ITHB", "ITHC", "ITHAvg"],
@@ -435,13 +438,12 @@ class DescriptiveStats:
                 section_df = df[columns]
                 max_dfs.append(section_df.max(axis=0).rename(section))
                 min_dfs.append(section_df.min(axis=0).rename(section))
-        # endregion
 
         # Combine min/max values
-        max_vals = pd.concat(max_dfs, axis=0)
-        min_vals = pd.concat(min_dfs, axis=0)
+        max_vals = pd.concat(max_dfs, axis=0) if max_dfs else pd.DataFrame()
+        min_vals = pd.concat(min_dfs, axis=0) if min_dfs else pd.DataFrame()
 
-        # region Energy Changes (Start-End)
+        # Calculate energy changes (start-end)
         energy_sections = {
             "Active Energy": ["EPA", "EPB", "EPC", "EPSum"],
             "Reactive Energy": ["EQA", "EQB", "EQC", "EQSum"],
@@ -463,100 +465,9 @@ class DescriptiveStats:
         energy_summary = (
             pd.concat(energy_changes, axis=0) if energy_changes else pd.DataFrame()
         )
-        # endregion
 
-        logger.info("Descriptive statistics calculated.")
+        logger.info("Descriptive statistics calculated successfully.")
         return max_vals, min_vals, energy_summary
-
-    def __min_max(self, df: pd.DataFrame, columns: list[str]) -> Tuple[dict, dict]:
-        if df.empty:
-            logger.error("Empty DataFrame provided for min/max values.")
-            return {}, {}
-        max_dfs = []
-        min_dfs = []
-
-        # region Basic
-        # Current
-        df_I = df.loc[:, ["IA", "IB", "IC"]]
-        df_I_min = df_I.min(axis=0).rename("max", inplace=True)
-        df_I_max = df_I.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_I_min)
-        max_dfs.append(df_I_max)
-
-        # Voltage
-        df_U = df.loc[:, ["UA", "UB", "UC"]]
-        df_U_min = df_U.min(axis=0).rename("max", inplace=True)
-        df_U_max = df_U.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_U_min)
-        max_dfs.append(df_U_max)
-
-        # Power
-        df_P = df.loc[:, ["PA", "PB", "PC"]]
-        df_P_min = df_P.min(axis=0).rename("max", inplace=True)
-        df_P_max = df_P.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_P_min)
-        max_dfs.append(df_P_max)
-        # endregion
-
-        # region Energy
-        # Active energy
-        df_EP_cols = ["EPA", "EPB", "EPC", "EPSum"]
-        df_EP = df.loc[:, ["EPA", "EPB", "EPC", "EPSum"]]
-        df_EP_min = df_EP.min(axis=0).rename("max", inplace=True)
-        df_EP_max = df_EP.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_EP_min)
-        max_dfs.append(df_EP_max)
-
-        # Reactive energy
-        df_EQ_cols = ["EQA", "EQB", "EQC", "EQSum"]
-        df_EQ = df.loc[:, ["EQA", "EQB", "EQC", "EQSum"]]
-        df_EQ_min = df_EQ.min(axis=0).rename("max", inplace=True)
-        df_EQ_max = df_EQ.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_EQ_min)
-        max_dfs.append(df_EQ_max)
-
-        # Apparent energy
-        df_ES_cols = ["ESA", "ESB", "ESC", "ESSum"]
-        df_ES = df.loc[:, ["ESA", "ESB", "ESC", "ESSum"]]
-        df_ES_min = df_ES.min(axis=0).rename("max", inplace=True)
-        df_ES_max = df_ES.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_ES_min)
-        max_dfs.append(df_ES_max)
-        # endregion
-
-        # region Power
-        # Active Power(W)
-        df_PA_cols = ["PA", "PB", "PC", "PSum"]
-        df_PA = df.loc[:, ["PA", "PB", "PC", "PSum"]]
-        df_PA_min = df_PA.min(axis=0).rename("max", inplace=True)
-        df_PA_max = df_PA.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_PA_min)
-        max_dfs.append(df_PA_max)
-
-        # Reactive Power(Var)
-        df_PB_cols = ["QA", "QB", "QC", "QSum"]
-        df_PB = df.loc[:, ["QA", "QB", "QC", "QSum"]]
-        df_PB_min = df_PB.min(axis=0).rename("max", inplace=True)
-        df_PB_max = df_PB.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_PB_min)
-        max_dfs.append(df_PB_max)
-
-        # Apparent Power(Va)
-        df_PC_cols = ["SA", "SB", "SC", "SSum"]
-        df_PC = df.loc[:, ["SA", "SB", "SC", "SSum"]]
-        df_PC_min = df_PC.min(axis=0).rename("max", inplace=True)
-        df_PC_max = df_PC.max(axis=0).rename("min", inplace=True)
-        min_dfs.append(df_PC_min)
-        max_dfs.append(df_PC_max)
-        # endregion
-
-        df_max = pd.concat(min_dfs, axis=0)
-        df_min = pd.concat(max_dfs, axis=0)
-
-        result = pd.concat([df_max, df_min], axis=1)
-        result.columns = ["max", "min"]
-
-        print(f"{result}")
 
 
 def performance_monitor(func):
@@ -609,7 +520,9 @@ def main(path: str):
     df = preprocess_data(df)
 
     # Plot time series
-    plot_time_series(df, ["IA", "IB", "IC"], "Current", min_max_arrows=True, downsample=5)
+    plot_time_series(
+        df, ["IA", "IB", "IC"], "Current", min_max_arrows=True, downsample=5
+    )
     # plot_time_series(df, ['PA', 'PB', 'PC'], 'Power', min_max_arrows=True)
 
     # Plot gaussian distribution
@@ -631,10 +544,12 @@ def load_data(path: str, rows: int = 0) -> pd.DataFrame | None:
     data_loader = DataLoader()
     return data_loader.load_data(path, rows)
 
+
 # @performance_monitor
 def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     processor = DataProcessor()
     return processor.preprocess(df)
+
 
 @performance_monitor
 def describe_data(df: pd.DataFrame) -> None:
@@ -655,7 +570,10 @@ def plot_time_series(
     downsample: int = 1,
 ) -> None:
     plotter = Plotter()
-    plotter.plot_time_series(df, columns, title, min_max_arrows, start_date, end_date, downsample)
+    plotter.plot_time_series(
+        df, columns, title, min_max_arrows, start_date, end_date, downsample
+    )
+
 
 @performance_monitor
 def plot_gaussian_distribution(
@@ -672,6 +590,6 @@ def plot_gaussian_distribution(
 
 # endregion
 if __name__ == "__main__":
-    PATH = 'data\DataSheet_1819011001_3P4W_3.csv'
+    PATH = "data\DataSheet_1819011001_3P4W_3.csv"
     # PATH = "data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv"
     main(path=PATH)
