@@ -1,32 +1,55 @@
 import pandas as pd
-import numpy as np
-import scipy
-
 import tkinter as tk
+import sv_ttk
 from tkinter import ttk
 from tkinter import filedialog
-
-import sv_ttk
-from ttkthemes import ThemedTk
-
 from os import path
+
 from utils import *
 
 
 class FileSelectorGUI:
     def __init__(self, master):
         self.master = master
-        self.master.geometry("450x150")
+        self.master.geometry("450x250")
         self.master.title("File Selector")
+        self.master.resizable(False, False)
 
-        self.file_path_label = ttk.Label(self.master, text="Please, select the file...")
-        self.file_path_label.pack(pady=10)
+        # Main frame to center elements
+        main_frame = ttk.Frame(self.master, padding=15)
+        main_frame.pack(expand=True)
 
-        self.select_file_button = ttk.Button(self.master, text="Select File", command=self.select_file)
-        self.select_file_button.pack(pady=2, padx=10, fill="x")
+        # File selection label
+        self.file_path_label = ttk.Label(main_frame, text="Please, select the file...", anchor="center")
+        self.file_path_label.grid(row=0, column=0, columnspan=2, pady=(5, 10))
 
-        self.process_file_button = ttk.Button(self.master, text="Process File", command=self.process_file)
-        self.process_file_button.pack(pady=2, padx=10, fill="x")
+        # File selection button
+        self.select_file_button = ttk.Button(
+            main_frame, text="Select File", command=self.select_file
+        )
+        self.select_file_button.grid(row=1, column=0, columnspan=2, pady=5, sticky="ew")
+
+        # Start datetime label & entry
+        self.start_label = ttk.Label(main_frame, text="Start Datetime:")
+        self.start_label.grid(row=2, column=0, sticky="e", pady=5, padx=(10, 5))
+
+        self.start_entry = ttk.Entry(main_frame, width=25, justify="center")
+        self.start_entry.insert(0, "2024-10-23, 10:22:00")
+        self.start_entry.grid(row=2, column=1, pady=5, padx=(5, 10))
+
+        # End datetime label & entry
+        self.end_label = ttk.Label(main_frame, text="End Datetime:")
+        self.end_label.grid(row=3, column=0, sticky="e", pady=5, padx=(10, 5))
+
+        self.end_entry = ttk.Entry(main_frame, width=25, justify="center")
+        self.end_entry.insert(0, "2024-10-23, 12:00:00")
+        self.end_entry.grid(row=3, column=1, pady=5, padx=(5, 10))
+
+        # Process file button
+        self.process_file_button = ttk.Button(
+            main_frame, text="Process File", command=self.process_file
+        )
+        self.process_file_button.grid(row=4, column=0, columnspan=2, pady=15, sticky="ew")
 
         self.selected_file_path = ""
         self.child_window = None
@@ -40,103 +63,95 @@ class FileSelectorGUI:
     def update_file_info(self):
         if self.selected_file_path:
             file_name = path.basename(self.selected_file_path)
-            label_text = f"Selected file -  {file_name}"
-            self.file_path_label.config(text=label_text)
+            self.file_path_label.config(text=f"Selected file - {file_name}")
 
     def process_file(self):
         if self.selected_file_path and self.child_window is None:
+            start_datetime = self.start_entry.get().strip()
+            end_datetime = self.end_entry.get().strip()
+            
+            if start_datetime == "" and end_datetime == "":
+                start_datetime = None
+                end_datetime = None
+
             self.child_window = tk.Toplevel(self.master)
-            self.child_window.protocol('WM_DELETE_WINDOW', self.close_Toplevel)
-            child_app = ChildWindow(self.child_window, self.selected_file_path)
-    
+            self.child_window.protocol("WM_DELETE_WINDOW", self.close_Toplevel)
+            child_app = ChildWindow(self.child_window, self.selected_file_path, start_datetime, end_datetime)
+
     def close_Toplevel(self):
         self.child_window.destroy()
         self.child_window = None
 
-class ChildWindow:
-    def __init__(self, master, path):
+
+
+
+class ChildWindow: # TODO: error label. utils.py rises error, and it shows in this label
+    def __init__(self, master, file_path, start_datetime, end_datetime):
         self.master = master
-        self.master.geometry("1055x350")  # Increased width to accommodate two Text widgets
-        self.master.title("Make plots")
+        self.master.geometry("1150x500")
+        self.master.title("Data Visualization")
 
         self.data_loader = DataLoader()
         self.processor = DataProcessor()
         self.plotter = Plotter()
         self.stats = DescriptiveStats()
 
-        self.df = self.processor.preprocess(self.data_loader.load_data(path))
+        self.df = self.processor.preprocess(self.data_loader.load_data(file_path, start_date=start_datetime, end_date=end_datetime))
 
-        # Create a PanedWindow
-        paned_window = tk.PanedWindow(master, orient=tk.HORIZONTAL)
-        paned_window.pack(expand=True, fill="both")
+        main_frame = ttk.Frame(self.master)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Left Frame for buttons
-        left_frame = ttk.Frame(paned_window)
-        paned_window.add(left_frame)
+        left_frame = ttk.LabelFrame(main_frame, text="Plot Selection", padding=10)
+        left_frame.pack(side="left", fill="y", padx=5)
 
-        window_label = ttk.Label(left_frame, text="Plots", font=("Helvetica", 14, "bold"))
-        window_label.pack(pady=15)
+        right_frame = ttk.LabelFrame(main_frame, text="Statistics", padding=10)
+        right_frame.pack(side="right", fill="both", expand=True, padx=5)
 
-        label_y_padding = (5, 0)
-        button_x_padding = 6
-        button_y_padding = 5
+        self.add_plot_controls(left_frame)
+        self.add_stats_table(right_frame)
+        
+    def add_plot_controls(self, frame):
+        ttk.Label(frame, text="Select a time series plot:", font=("Helvetica", 10, "bold")).pack(pady=5)
 
-        # send df(dt, ia, ib, ic)
-        curtm_label = ttk.Label(left_frame, text="Current timeline (IA IB IC)")
-        curtm_label.pack(pady=label_y_padding)
-        curtm_plot_button = ttk.Button(left_frame, text="Make plot",
-                                       command=lambda: self.plotter.plot_time_series(self.df[['Date_Time', 'IA', 'IB', 'IC']],
-                                                                                     columns=['IA', 'IB', 'IC'],
-                                                                                     title="Current Timeline",
-                                                                                     min_max_arrows=self.min_max_var.get()))
-        curtm_plot_button.pack(fill='x', padx=button_x_padding, pady=button_y_padding)
+        # Time series plots
+        plot_buttons = [
+            ("Current Timeline (IA IB IC)", ["IA", "IB", "IC"]),
+            ("Power Timeline (SA SB SC)", ["SA", "SB", "SC"]),
+            ("Active Energy Timeline (EPA EPB EPC)", ["EPA", "EPB", "EPC", "EPSum"]),
+        ]
 
-        # send df(dt, pa, pb, pc)
-        powtm_label = ttk.Label(left_frame, text="Power timeline (SA SB SC)")
-        powtm_label.pack(pady=label_y_padding)
-        powtm_plot_button = ttk.Button(left_frame, text="Make plot",
-                                       command=lambda: self.plotter.plot_time_series(self.df[['Date_Time', 'SA', 'SB', 'SC']],
-                                                                                     columns=['SA', 'SB', 'SC'],
-                                                                                     title="Power Timeline",
-                                                                                     min_max_arrows=self.min_max_var.get()))
-        powtm_plot_button.pack(fill='x', padx=button_x_padding, pady=button_y_padding)
-
-        # send df(dt, epa, epb, epc, epsum)
-        energy_label = ttk.Label(left_frame, text="Active energy timeline (EPA EPB EPC)")
-        energy_label.pack(pady=label_y_padding)
-        energy_plot_button = ttk.Button(left_frame, text="Make plot",
-                                        command=lambda: self.plotter.plot_time_series(self.df[['Date_Time', 'EPA', 'EPB', 'EPC', 'EPSum']],
-                                                                                      columns=['EPA', 'EPB', 'EPC', 'EPSum'],
-                                                                                      title="Active Energy Timeline",
-                                                                                      min_max_arrows=self.min_max_var.get()))
-        energy_plot_button.pack(fill='x', padx=button_x_padding, pady=button_y_padding)
-
-        # min max arrows
+        for label, cols in plot_buttons:
+            ttk.Button(frame, text=label, command=lambda c=cols: self.plotter.plot_time_series(self.df[['Date_Time'] + c], columns=c, title=label, min_max_arrows=self.min_max_var.get())).pack(fill='x', pady=2)                    
+        
         self.min_max_var = tk.BooleanVar()
-        min_max_checkbox = ttk.Checkbutton(left_frame, text="Show Min Max Arrows", variable=self.min_max_var)
+        min_max_checkbox = ttk.Checkbutton(frame, text="Show Min Max Arrows", variable=self.min_max_var)
         min_max_checkbox.pack()
 
-        separator = ttk.Separator(left_frame, orient='horizontal')
-        separator.pack(fill='x', pady=8)
+        functions = [
+            ("Distributions:", self.plotter.plot_gaussian_distribution_v1),
+            ("Distributions (for heavy files):", self.plotter.plot_gaussian_distribution_v2)
+        ]
+        
+        distributions = [
+            ("Voltage Gaussian Dist (UA UB UC)", ['UA', 'UB', 'UC']),
+            ("Current Gaussian Dist (IA IB IC)", ['IA', 'IB', 'IC']),
+        ]
 
-        # send df(ua, ub, uc)
-        voltage_label = ttk.Label(left_frame, text="Voltage GaussDistr (UA UB UC)")
-        voltage_label.pack(pady=label_y_padding)
-        voltage_plot_button = ttk.Button(left_frame, text="Make plot",
-                                          command=lambda: self.plotter.plot_gaussian_distribution(self.df[['UA', 'UB', 'UC']],
-                                                                                                 columns=['UA', 'UB', 'UC'],
-                                                                                                 title='Voltage Gaussian Distribution'))
-        voltage_plot_button.pack(fill='x', padx=button_x_padding, pady=button_y_padding)
+        for title, func in functions:
+            ttk.Separator(frame, orient='horizontal').pack(fill='x', pady=8)
+            ttk.Label(frame, text=title, font=("Helvetica", 10, "bold")).pack(pady=5)
+            for label, cols in distributions:
+                # include cols and func in lambda to avoid late binding
+                ttk.Button(frame, text=label, command=lambda c=cols, f=func: f(self.df[c], columns=c, title=label)).pack(fill='x', pady=2)
+                
+            # ttk.Button(frame, text="Voltage Gaussian Dist (UA UB UC)", command=lambda f=func: f(self.df[['UA', 'UB', 'UC']], columns=['UA', 'UB', 'UC'], title='Voltage Distribution')).pack(fill='x', pady=2)
 
-        # Right Frame for Statistics Display
-        right_frame = ttk.Frame(paned_window)
-        paned_window.add(right_frame)
-
+    def add_stats_table(self, frame):
         # Create Two Text Widgets
-        text_box_min_max = tk.Text(right_frame, wrap=tk.WORD, height=20, width=46)
+        text_box_min_max = tk.Text(frame, wrap=tk.WORD, height=20, width=46)
         text_box_min_max.grid(row=0, column=0, padx=5, pady=5)
 
-        text_box_energy = tk.Text(right_frame, wrap=tk.WORD, height=20, width=51)
+        text_box_energy = tk.Text(frame, wrap=tk.WORD, height=20, width=51)
         text_box_energy.grid(row=0, column=1, padx=5, pady=5)
 
         # Populate the Min/Max Text Box
@@ -150,10 +165,10 @@ class ChildWindow:
             stats_df.columns = ["Max", "Min"]
 
             # Adjusted column widths for better alignment
-            param_width = 15   # Parameter column
-            max_width = 15     # Max values column
-            min_width = 15     # Min values column
-            
+            param_width = 15  # Parameter column
+            max_width = 15  # Max values column
+            min_width = 15  # Min values column
+
             # Header row with better alignment
             min_max_text += f"{'Parameter'.ljust(param_width)}{'Max'.rjust(max_width)}{'Min'.rjust(min_width)}\n"
             min_max_text += "-" * 45 + "\n"  # Increased separator width again
@@ -161,9 +176,13 @@ class ChildWindow:
             # Format each row with consistent spacing
             for index, row in stats_df.iterrows():
                 # Using better number formatting with fewer decimals for large numbers
-                max_val = f"{row['Max']:.2f}" if row['Max'] < 1000 else f"{row['Max']:.0f}"
-                min_val = f"{row['Min']:.2f}" if row['Min'] < 1000 else f"{row['Min']:.0f}"
-                
+                max_val = (
+                    f"{row['Max']:.2f}" if row["Max"] < 1000 else f"{row['Max']:.0f}"
+                )
+                min_val = (
+                    f"{row['Min']:.2f}" if row["Min"] < 1000 else f"{row['Min']:.0f}"
+                )
+
                 # Ensure consistent column widths with proper padding
                 min_max_text += f"{index.ljust(param_width)}{max_val.rjust(max_width)}{min_val.rjust(min_width)}\n"
 
@@ -179,13 +198,14 @@ class ChildWindow:
             energy_text += "-" * 50 + "\n"
 
             for _, row in energy_summary.iterrows():
-                energy_text += (f"{row['Category'].ljust(20)}"
-                                f"{row['First']:>10.0f}"
-                                f"{row['Last']:>10.0f}"
-                                f"{row['Change']:>10.0f}\n")
+                energy_text += (
+                    f"{row['Category'].ljust(20)}"
+                    f"{row['First']:>10.0f}"
+                    f"{row['Last']:>10.0f}"
+                    f"{row['Change']:>10.0f}\n"
+                )
 
             text_box_energy.insert(tk.END, energy_text)
-
 
 
 if __name__ == "__main__":
@@ -194,5 +214,5 @@ if __name__ == "__main__":
     # root.iconbitmap('folder_icon.ico')
     sv_ttk.set_theme("dark")  # Set theme for sv_ttk
     app = FileSelectorGUI(root)
-    
+
     root.mainloop()

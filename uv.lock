@@ -26,6 +26,15 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "babel"
+version = "2.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/6b/d52e42361e1aa00709585ecc30b3f9684b3ab62530771402248b1b1d6240/babel-2.17.0.tar.gz", hash = "sha256:0c54cffb19f690cdcc52a3b50bcbf71e07a808d1c80d549f2459b9d2cf0afb9d", size = 9951852 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/b8/3fe70c75fe32afc4bb507f75563d39bc5642255d1d94f1f23604725780bf/babel-2.17.0-py3-none-any.whl", hash = "sha256:4d0b53093fdfb4b21c92b5213dba5a1b23885afa8383709427046b21c366e5f2", size = 10182537 },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -572,6 +581,7 @@ dependencies = [
     { name = "scipy" },
     { name = "seaborn" },
     { name = "sv-ttk" },
+    { name = "tkcalendar" },
     { name = "ttkthemes" },
 ]
 
@@ -588,6 +598,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.2" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "sv-ttk", specifier = ">=2.6.0" },
+    { name = "tkcalendar", specifier = ">=1.6.1" },
     { name = "ttkthemes", specifier = ">=3.2.2" },
 ]
 
@@ -859,6 +870,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/40/da/6ad667a4bad4d66ec2d15206c1a1ad81d572679e516aae078824a6f35870/sv_ttk-2.6.0.tar.gz", hash = "sha256:3fd440396c95e30e88f686fcf28be425480f7320d6bf346f9cea5d6f56702cc2", size = 47214 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0f/3d/be0abc3202e90f282ad465f4e7c6e41bc8dce810ce5d1611566a1e7dfba8/sv_ttk-2.6.0-py3-none-any.whl", hash = "sha256:4319c52edf2e14732fe84bdc9788e26f9e9a1ad79451ec0f89f0120ffc8105d9", size = 49097 },
+]
+
+[[package]]
+name = "tkcalendar"
+version = "1.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "babel" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/65/3d/3406cf7963661ed890082bff17ed4c5e26b5a564306639303d4fbb2a047f/tkcalendar-1.6.1.tar.gz", hash = "sha256:5edf958c0a59429e90309e9b805b2e229192bbcab952460247204d7030eea5cf", size = 32916 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/d4/9528ea6ecb5d4394f425df651957da6f6a715b41c5b12d43d41888c14394/tkcalendar-1.6.1-py3-none-any.whl", hash = "sha256:9d3a80816a7b32d64fab696fa3d2a007fb23c87953267d5e343a38ff4cd7c15c", size = 40912 },
 ]
 
 [[package]]

@@ -16,5 +16,6 @@ dependencies = [
     "scipy>=1.15.2",
     "seaborn>=0.13.2",
     "sv-ttk>=2.6.0",
+    "tkcalendar>=1.6.1",
     "ttkthemes>=3.2.2",
 ]
