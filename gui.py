@@ -34,7 +34,7 @@ class FileSelectorGUI:
         self.start_label.grid(row=2, column=0, sticky="e", pady=5, padx=(10, 5))
 
         self.start_entry = ttk.Entry(main_frame, width=25, justify="center")
-        self.start_entry.insert(0, "2024-10-23, 10:22:00")
+        self.start_entry.insert(0, "2015-1-1, 10:22:00")
         self.start_entry.grid(row=2, column=1, pady=5, padx=(5, 10))
 
         # End datetime label & entry
@@ -42,7 +42,7 @@ class FileSelectorGUI:
         self.end_label.grid(row=3, column=0, sticky="e", pady=5, padx=(10, 5))
 
         self.end_entry = ttk.Entry(main_frame, width=25, justify="center")
-        self.end_entry.insert(0, "2024-10-23, 12:00:00")
+        self.end_entry.insert(0, "2015-1-2, 12:00:00")
         self.end_entry.grid(row=3, column=1, pady=5, padx=(5, 10))
 
         # Process file button

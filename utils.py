@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import logging
-import colorlog
 
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
@@ -19,28 +18,8 @@ import pstats
 import io
 
 
-def init_logger():
-    """Initializes the logger with a custom format."""
-    log_format = "%(log_color)s%(levelname)s%(reset)s: %(asctime)s.%(msecs)03d - %(message)s%(reset)s"
-    color_formatter = colorlog.ColoredFormatter(
-        log_format,
-        log_colors={
-            "DEBUG": "cyan",
-            "INFO": "green",
-            "WARNING": "yellow",
-            "ERROR": "red",
-            "CRITICAL": "bold_red",
-        },
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(color_formatter)
-    logging.basicConfig(level=logging.INFO, handlers=[console_handler])
-
-
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(asctime)s.%(msecs)03d - %(message)s")
 logger = logging.getLogger(__name__)
-init_logger()
 
 # Constants for colors
 LINE_COLORS = ["yellow", "green", "red", "blue"]
