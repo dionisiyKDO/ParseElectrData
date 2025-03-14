@@ -121,7 +121,7 @@ class ChildWindow: # TODO: error label. utils.py rises error, and it shows in th
         ]
 
         for label, cols in plot_buttons:
-            ttk.Button(frame, text=label, command=lambda c=cols: self.plotter.plot_time_series(self.df[['Date_Time'] + c], columns=c, title=label, min_max_arrows=self.min_max_var.get())).pack(fill='x', pady=2)                    
+            ttk.Button(frame, text=label, command=lambda c=cols, lab=label: self.plotter.plot_time_series(self.df[['Date_Time'] + c], columns=c, title=lab, min_max_arrows=self.min_max_var.get())).pack(fill='x', pady=2)                    
         
         self.min_max_var = tk.BooleanVar()
         min_max_checkbox = ttk.Checkbutton(frame, text="Show Min Max Arrows", variable=self.min_max_var)
@@ -142,16 +142,16 @@ class ChildWindow: # TODO: error label. utils.py rises error, and it shows in th
             ttk.Label(frame, text=title, font=("Helvetica", 10, "bold")).pack(pady=5)
             for label, cols in distributions:
                 # include cols and func in lambda to avoid late binding
-                ttk.Button(frame, text=label, command=lambda c=cols, f=func: f(self.df[c], columns=c, title=label)).pack(fill='x', pady=2)
+                ttk.Button(frame, text=label, command=lambda c=cols, f=func, lab=label: f(self.df[c], columns=c, title=lab)).pack(fill='x', pady=2)
                 
             # ttk.Button(frame, text="Voltage Gaussian Dist (UA UB UC)", command=lambda f=func: f(self.df[['UA', 'UB', 'UC']], columns=['UA', 'UB', 'UC'], title='Voltage Distribution')).pack(fill='x', pady=2)
 
     def add_stats_table(self, frame):
         # Create Two Text Widgets
-        text_box_min_max = tk.Text(frame, wrap=tk.WORD, height=20, width=46)
+        text_box_min_max = tk.Text(frame, wrap=tk.WORD, height=27, width=46)
         text_box_min_max.grid(row=0, column=0, padx=5, pady=5)
 
-        text_box_energy = tk.Text(frame, wrap=tk.WORD, height=20, width=51)
+        text_box_energy = tk.Text(frame, wrap=tk.WORD, height=27, width=51)
         text_box_energy.grid(row=0, column=1, padx=5, pady=5)
 
         # Populate the Min/Max Text Box
