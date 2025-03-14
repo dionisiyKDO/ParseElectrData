@@ -48,51 +48,93 @@ ARROW_COLORS = ["black", "black", "black", "black"]
 
 
 class DataLoader:
-    """Handles loading data from csv file."""
+    """Handles loading data from CSV file efficiently."""
 
     @staticmethod
     def load_data(
-        file_path: str, rows: int = 0, usecols: Optional[List[str]] = None
+        file_path: str,
+        rows: int = 0,
+        usecols: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ) -> Optional[pd.DataFrame]:
         """
-        Loads data from a CSV file into a pandas DataFrame.
+        Loads data from a CSV file into a pandas DataFrame with optional filtering by date range.
 
         Args:
-            file_path: Path to the CSV file
-            rows: Number of rows to read (0 for all rows)
-            usecols: List of specific columns to load (will automatically include Date and Time)
+            file_path: Path to the CSV file.
+            rows: Number of rows to read (0 for all rows).
+            usecols: List of specific columns to load (Date and Time are included by default).
+            start_date: Start datetime (YYYY-MM-DD HH:MM:SS) to filter data.
+            end_date: End datetime (YYYY-MM-DD HH:MM:SS) to filter data.
 
         Returns:
-            DataFrame containing the loaded data or None if loading fails
+            DataFrame containing the loaded and filtered data or None if loading fails.
         """
         if not exists(file_path):
             logger.error("File not found: %s", file_path)
             return None
 
         try:
-            # Ensure Date and Time columns are included for plotting
+            # Ensure Date and Time are included
             if usecols is not None:
                 usecols = list(set(usecols) | {"Date", "Time"})
 
-            df = pd.read_csv(
+            # Convert date strings to datetime objects
+            start_dt = pd.to_datetime(start_date) if start_date else None
+            end_dt = pd.to_datetime(end_date) if end_date else None
+
+            # Process CSV in chunks
+            chunk_size = 100_000  # Adjust based on your memory
+            filtered_chunks = []
+            found_range = False
+
+            for chunk in pd.read_csv(
                 file_path,
                 skiprows=2,  # Skip header rows
-                nrows=rows if rows else None,
-                low_memory=True,
                 usecols=usecols,
-                parse_dates=[[0, 1]],  # Combine Date and Time columns
-            )
+                parse_dates={"Date_Time": ["Date", "Time"]},  # Merge Date & Time into one column
+                iterator=True,
+                chunksize=chunk_size,
+                low_memory=True,
+            ):
+                # Filter by date range
+                if start_dt or end_dt:
+                    mask = True
+                    if start_dt:
+                        found_range = True
+                        mask &= chunk["Date_Time"] >= start_dt
+                    if end_dt:
+                        mask &= chunk["Date_Time"] <= end_dt
+                    chunk = chunk.loc[mask]
+
+                if not chunk.empty:
+                    filtered_chunks.append(chunk)
+                
+                # log progress to see if went to date range, and if it stopped early
+                logger.info("Data loaded: %s rows", len(chunk))
+                if found_range and len(chunk) == 0:
+                    logger.info("Stopped early due to date range.")
+                    break
+                
+                # stop early chunk if passed date range
+                if end_dt and chunk["Date_Time"].max() > end_dt:
+                    break
+
+                # Stop early if row limit is reached
+                if rows and sum(len(c) for c in filtered_chunks) >= rows:
+                    break
+
+            # Combine chunks
+            df = pd.concat(filtered_chunks, ignore_index=True) if filtered_chunks else None
 
             if df is None or df.empty:
-                logger.error("Empty DataFrame loaded")
+                logger.error("No data found within the specified range.")
                 return None
 
-            # Clean up any unnamed columns
-            df.drop(
-                columns=[col for col in df.columns if col.startswith("Unnamed")],
-                inplace=True,
-                errors="ignore",
-            )
+            # Limit rows if necessary
+            if rows:
+                df = df.iloc[:rows]
 
             logger.info("Data loaded successfully: %s rows", len(df))
             return df
@@ -100,6 +142,7 @@ class DataLoader:
         except Exception as e:
             logger.error("Failed to load data: %s", e)
             return None
+
 
 
 class DataProcessor:
@@ -265,7 +308,7 @@ class Plotter:
         title: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        bins: int = 50,
+        bins: int = 150,
     ) -> Optional[go.Figure]:
         """
         Plot a Gaussian distribution chart using histogram approach.
@@ -387,19 +430,19 @@ class Plotter:
         df = df.sort_values("Date_Time").reset_index(drop=True)
         df["Time_Diff"] = df["Date_Time"].diff()
 
-        # Identify gaps exceeding 2 hours
-        gap_indices = df.index[df["Time_Diff"] > pd.Timedelta(hours=2)]
+        # Identify gaps exceeding 10 minutes
+        gap_indices = df.index[df["Time_Diff"] > pd.Timedelta(minutes=10)]
         new_rows = []
 
-        # Fill each gap with 2-hour interval rows
+        # Fill each gap with 10 minutes interval rows
         for i in gap_indices:
             start_time = df.loc[i - 1, "Date_Time"]
             end_time = df.loc[i, "Date_Time"]
-            # Generate timestamps at 2-hour intervals (excluding endpoints)
+            # Generate timestamps at 10 minutes intervals (excluding endpoints)
             missing_times = pd.date_range(
-                start=start_time + pd.Timedelta(hours=2),
-                end=end_time - pd.Timedelta(hours=2),
-                freq="2H",
+                start=start_time + pd.Timedelta(minutes=10),
+                end=end_time - pd.Timedelta(minutes=10),
+                freq="10min",
             )
 
             # Create rows with zeros for each missing timestamp
@@ -454,7 +497,7 @@ class Plotter:
     ) -> None:
         """
         Add a formatted annotation to the plot.
-        
+
         Args:
             row: DataFrame row containing the point to annotate
             col: Column name
@@ -483,15 +526,15 @@ class Plotter:
 
 class DescriptiveStats:
     """Handles statistical analysis of power data."""
-    
+
     @staticmethod
     def describe(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Calculate descriptive statistics for power data.
-        
+
         Args:
             df: DataFrame containing power data
-            
+
         Returns:
             Tuple containing:
             - DataFrame of maximum values by category
@@ -554,7 +597,7 @@ class DescriptiveStats:
                 # Get first and last readings
                 start = df[columns].head(1)
                 end = df[columns].tail(1).reset_index(drop=True)
-                
+
                 # Calculate the change (consumption)
                 section_change = pd.concat([start, end, end - start], axis=0).T
                 section_change.columns = ["First", "Last", "Change"]
@@ -562,7 +605,9 @@ class DescriptiveStats:
                 energy_changes.append(section_change)
 
         # Combine all energy summaries
-        energy_summary = pd.concat(energy_changes, axis=0) if energy_changes else pd.DataFrame()
+        energy_summary = (
+            pd.concat(energy_changes, axis=0) if energy_changes else pd.DataFrame()
+        )
         logger.info("Descriptive statistics calculated successfully")
         return max_vals, min_vals, energy_summary
 
@@ -570,17 +615,17 @@ class DescriptiveStats:
 def performance_monitor(func):
     """
     Decorator to measure execution time, memory usage, and CPU load of a function.
-    
+
     This wrapper provides detailed performance metrics including:
     - Execution time
     - Memory usage change
     - Peak memory usage
     - CPU utilization
     - Function profiling stats (top 10 most time-consuming operations)
-    
+
     Args:
         func: The function to monitor
-        
+
     Returns:
         Wrapped function with performance monitoring
     """
@@ -592,7 +637,7 @@ def performance_monitor(func):
         profiler = cProfile.Profile()
         profiler.enable()
         tracemalloc.start()
-        
+
         # Capture starting metrics
         start_time = time.time()
         start_memory = process.memory_info().rss / 1024**2  # MB
@@ -620,45 +665,42 @@ def performance_monitor(func):
         print(f"Memory Usage Change: {end_memory - start_memory:.4f} MB")
         print(f"Peak Memory Usage: {peak_memory:.4f} MB")
         print(f"CPU Usage: {process.cpu_percent(interval=0.1)}%\n")
-        
+
         return result
 
     return wrapper
 
+
 def main(path: str):
     """
     Main function to process and analyze power data.
-    
+
     This function orchestrates the entire data processing pipeline:
     1. Loads data from the specified CSV file
     2. Preprocesses the data
     3. Creates visualizations
     4. Optionally calculates descriptive statistics
-    
+
     Args:
         path: Path to the CSV data file
     """
-    # Load data
-    df = load_data(path)
+    # Load data 1/1/2015,11:00:00 1/2/2015,5:30:00,
+    df = load_data(path, start_date="2015-1-1, 11:00:00", end_date="2015-1-2, 5:30:00")
     if df is None:
         logger.error("Failed to load data. Exiting.")
         return
 
     # Preprocess data
-    df = preprocess_data(df)
-    if df.empty:
-        logger.error("Data preprocessing failed. Exiting.")
-        return
+    # df = preprocess_data(df)
+    # if df.empty:
+    #     logger.error("Data preprocessing failed. Exiting.")
+    #     return
 
     # Plot time series
-    plot_time_series(
-        df, ["IA", "IB", "IC"], "Current Time Series", 
-        min_max_arrows=True, downsample=5
-    )
-    plot_time_series(
-        df, ['PA', 'PB', 'PC'], 'Power Analysis', 
-        min_max_arrows=True
-    )
+    # plot_time_series(
+    #     df, ["IA", "IB", "IC"], "Current Time Series", min_max_arrows=True, downsample=5
+    # )
+    # plot_time_series(df, ["PA", "PB", "PC"], "Power Analysis", min_max_arrows=True)
 
     # plot_gaussian_distribution(
     #     df,
@@ -674,9 +716,9 @@ def main(path: str):
 
 
 @performance_monitor  # load: 7-9 sec; convert to datetime: 10 sec
-def load_data(path: str, rows: int = 0) -> Optional[pd.DataFrame]:
+def load_data(path: str, rows: int = 0, start_date: str=None, end_date: str=None) -> Optional[pd.DataFrame]:
     data_loader = DataLoader()
-    return data_loader.load_data(path, rows)
+    return data_loader.load_data(path, rows, start_date=start_date, end_date=end_date)
 
 
 @performance_monitor
@@ -724,7 +766,7 @@ def plot_gaussian_distribution(
 
 # endregion
 if __name__ == "__main__":
-    PATH = "data\DataSheet_1819011001_3P4W_3.csv"
-    # PATH = "data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv" # million rows
-    
+    # PATH = "data\DataSheet_1819011001_3P4W_3.csv"
+    PATH = "data\Copy of DataSheet_1819011001_3P4W-ХХХ.csv" # million rows
+
     main(path=PATH)
